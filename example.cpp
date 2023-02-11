@@ -1,15 +1,14 @@
-#include <cstddef>
-#include <cstdio>
+#include "dbscan.hpp"
 #include <iostream>
 #include <string>
+#include <system_error>
 #include <vector>
 #include <utility>
 #include <fstream>
 #include <charconv>
 #include <cassert>
-
-
-auto dbscan(const std::vector<std::pair<float, float>>& data, float eps, int min_pts) -> std::vector<std::vector<size_t>>;
+#include <tuple>
+#include <cstring>
 
 
 auto check_from_chars_error(std::errc err, const std::string_view& line, int line_counter)
@@ -52,7 +51,29 @@ auto read_pair(const std::string_view& line, int line_counter)
 }
 
 
-auto read_points(const std::string& filename)
+auto push_values(std::vector<float>& store, const std::string_view& line, int line_counter)
+{
+    auto ptr = line.data();
+    auto ec  = std::errc();
+    auto n_pushed = 0;
+
+    do
+    {
+        float value;
+        auto [p, ec] =  std::from_chars(ptr, &line[line.size()], value);
+        ptr = p + 1;
+        check_from_chars_error(ec, line, line_counter);
+        n_pushed++;
+        store.push_back(value);
+
+    }while(ptr < line.data() + line.size());
+
+    return n_pushed;
+}
+
+
+
+auto read_values(const std::string& filename)
 {
     std::ifstream file(filename);
 
@@ -64,7 +85,8 @@ auto read_points(const std::string& filename)
 
     auto count = 0;
 
-    auto points = std::vector<std::pair<float, float>>();
+    auto points = std::vector<float>();
+    auto dim    = 0;
 
     while(not file.eof())
     {
@@ -74,12 +96,21 @@ auto read_points(const std::string& filename)
 
         if(not line.empty())
         {
-            auto pair = read_pair(line, count);
-            points.push_back(pair);
+            auto n_pushed = push_values(points, line, count);
+
+            if(count != 1)
+            {
+                if(n_pushed != dim)
+                {
+                    std::cerr << "Inconsistent number of dimensions at line '" << count << "'\n";
+                    std::exit(1);
+                }
+            }
+            dim = n_pushed;
         }
     }
 
-    return points;
+    return std::tuple(points, dim);
 }
 
 
@@ -115,6 +146,59 @@ auto flatten(const std::vector<std::vector<size_t>>& clusters, size_t n)
 }
 
 
+auto run_dbscan(int dim, const std::span<const point2>& data, float eps, int min_pts)
+{
+    assert(data.size() % dim == 0);
+    assert(dim == 2 or dim == 3);
+
+    if(dim == 2)
+    {
+        auto points = std::vector<point2>(data.size() / dim);
+        std::memcpy(points.data(), data.data(), sizeof(float) * data.size());
+
+        return dbscan(data, eps, min_pts);
+    }
+    
+
+    auto points = std::vector<point3>(data.size() / dim);
+    std::memcpy(points.data(), data.data(), sizeof(float) * data.size());
+    
+    return dbscan(data, eps, min_pts);
+}
+
+
+auto dbscan2d(const std::span<const float>& data, float eps, int min_pts)
+{
+    auto points = std::vector<point2>(data.size() / 2);
+
+    std::memcpy(points.data(), data.data(), sizeof(float) * data.size());
+
+    auto clusters = dbscan(points, eps, min_pts);
+    auto flat     = flatten(clusters, points.size());
+
+    for(size_t i = 0; i < points.size(); i++)
+    {
+        std::cout << points[i].x << ',' << points[i].y << ','  << flat[i] << '\n';
+    }
+}
+
+
+auto dbscan3d(const std::span<const float>& data, float eps, int min_pts)
+{
+    auto points = std::vector<point3>(data.size() / 3);
+
+    std::memcpy(points.data(), data.data(), sizeof(float) * data.size());
+
+    auto clusters = dbscan(points, eps, min_pts);
+    auto flat     = flatten(clusters, points.size());
+
+    for(size_t i = 0; i < points.size(); i++)
+    {
+        std::cout << points[i].x << ',' << points[i].y << ',' << points[i].z << ',' << flat[i] << '\n';
+    }
+}
+
+
 
 int main(int argc, char** argv)
 {
@@ -126,13 +210,14 @@ int main(int argc, char** argv)
 
     auto epsilon  = to_num<float>(argv[2]);
     auto min_pts  = to_num<int>  (argv[3]);
-    auto points   = read_points(argv[1]);
-    
-    auto clusters = dbscan(points, epsilon, min_pts);
-    auto flat     = flatten(clusters, points.size());
+    auto [values, dim] = read_values(argv[1]);
 
-    for(size_t i = 0; i < points.size(); i++)
+    if(dim == 2)
     {
-        std::cout << points[i].first << ',' << points[i].second << ',' << flat[i] << '\n';
+        dbscan2d(values, epsilon, min_pts);
+    }
+    else if (dim == 3)
+    {
+        dbscan3d(values, epsilon, min_pts);
     }
 }
