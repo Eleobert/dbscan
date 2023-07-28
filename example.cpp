@@ -33,7 +33,6 @@ auto check_from_chars_error(std::errc err, const std::string_view& line, int lin
 }
 
 
-
 auto push_values(std::vector<float>& store, const std::string_view& line, int line_counter)
 {
     auto ptr = line.data();
@@ -43,7 +42,7 @@ auto push_values(std::vector<float>& store, const std::string_view& line, int li
     do
     {
         float value;
-        auto [p, ec] =  std::from_chars(ptr, &line[line.size()], value);
+        auto [p, ec] =  std::from_chars(ptr, line.data() + line.size(), value);
         ptr = p + 1;
         check_from_chars_error(ec, line, line_counter);
         n_pushed++;
@@ -53,7 +52,6 @@ auto push_values(std::vector<float>& store, const std::string_view& line, int li
 
     return n_pushed;
 }
-
 
 
 auto read_values(const std::string& filename)
@@ -113,7 +111,7 @@ auto to_num(const std::string& str)
 
 
 // noise will be labelled as 0
-auto flatten(const std::vector<std::vector<size_t>>& clusters, size_t n)
+auto label(const std::vector<std::vector<size_t>>& clusters, size_t n)
 {
     auto flat_clusters = std::vector<size_t>(n);
 
@@ -129,8 +127,6 @@ auto flatten(const std::vector<std::vector<size_t>>& clusters, size_t n)
 }
 
 
-
-
 auto dbscan2d(const std::span<const float>& data, float eps, int min_pts)
 {
     auto points = std::vector<point2>(data.size() / 2);
@@ -138,7 +134,7 @@ auto dbscan2d(const std::span<const float>& data, float eps, int min_pts)
     std::memcpy(points.data(), data.data(), sizeof(float) * data.size());
 
     auto clusters = dbscan(points, eps, min_pts);
-    auto flat     = flatten(clusters, points.size());
+    auto flat     = label (clusters, points.size());
 
     for(size_t i = 0; i < points.size(); i++)
     {
@@ -154,7 +150,7 @@ auto dbscan3d(const std::span<const float>& data, float eps, int min_pts)
     std::memcpy(points.data(), data.data(), sizeof(float) * data.size());
 
     auto clusters = dbscan(points, eps, min_pts);
-    auto flat     = flatten(clusters, points.size());
+    auto flat     = label (clusters, points.size());
 
     for(size_t i = 0; i < points.size(); i++)
     {
