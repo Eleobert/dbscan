@@ -33,23 +33,6 @@ auto check_from_chars_error(std::errc err, const std::string_view& line, int lin
 }
 
 
-auto read_pair(const std::string_view& line, int line_counter)
-{
-    auto res = std::pair<double, double>();
-
-    auto [ptr1, ec1] = std::from_chars(&line[0], &line[line.size()], res.first);
-    // make sure there is space between the numbers
-    ec1 = (ptr1 == &line[line.size()] || *ptr1 != ',')? std::errc::invalid_argument: ec1;
-    ptr1++;
-    check_from_chars_error(ec1, line, line_counter);
-
-
-    auto [ptr2, ec2] = std::from_chars(ptr1, &line[line.size()], res.second);
-    check_from_chars_error(ec2, line, line_counter);
-
-    return res;
-}
-
 
 auto push_values(std::vector<float>& store, const std::string_view& line, int line_counter)
 {
@@ -146,25 +129,6 @@ auto flatten(const std::vector<std::vector<size_t>>& clusters, size_t n)
 }
 
 
-auto run_dbscan(int dim, const std::span<const point2>& data, float eps, int min_pts)
-{
-    assert(data.size() % dim == 0);
-    assert(dim == 2 or dim == 3);
-
-    if(dim == 2)
-    {
-        auto points = std::vector<point2>(data.size() / dim);
-        std::memcpy(points.data(), data.data(), sizeof(float) * data.size());
-
-        return dbscan(data, eps, min_pts);
-    }
-    
-
-    auto points = std::vector<point3>(data.size() / dim);
-    std::memcpy(points.data(), data.data(), sizeof(float) * data.size());
-    
-    return dbscan(data, eps, min_pts);
-}
 
 
 auto dbscan2d(const std::span<const float>& data, float eps, int min_pts)
